@@ -10,9 +10,9 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use datafusion::cube_ext;
 
 use log::{info, trace};
-use rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
+use rocksdb::backup::BackupEngineOptions;
 use rocksdb::checkpoint::Checkpoint;
-use rocksdb::{Env, Snapshot, WriteBatch, WriteBatchIterator, DB};
+use rocksdb::{Snapshot, WriteBatch, WriteBatchIterator, DB};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -618,9 +618,13 @@ impl RocksStore {
         details: Arc<dyn RocksStoreDetails>,
     ) -> Result<Arc<Self>, CubeError> {
         if !fs::metadata(path).await.is_ok() {
-            let opts = BackupEngineOptions::new(dump_path)?;
-            let mut backup = BackupEngine::open(&opts, &Env::new()?)?;
-            backup.restore_from_latest_backup(&path, &path, &RestoreOptions::default())?;
+            let mut backup =
+                rocksdb::backup::BackupEngine::open(&BackupEngineOptions::default(), dump_path)?;
+            backup.restore_from_latest_backup(
+                &path,
+                &path,
+                &rocksdb::backup::RestoreOptions::default(),
+            )?;
         } else {
             info!(
                 "Using existing {} in {}",
@@ -767,12 +771,11 @@ impl RocksStore {
             let mut serializer = WriteBatchContainer::new();
 
             let mut seq_numbers = Vec::new();
-            for update in updates.into_iter() {
-                let (n, write_batch) = update?;
+
+            updates.into_iter().for_each(|(n, write_batch)| {
                 seq_numbers.push(n);
                 write_batch.iterate(&mut serializer);
-            }
-
+            });
             (
                 serializer,
                 seq_numbers.iter().min().map(|v| *v),
