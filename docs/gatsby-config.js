@@ -77,6 +77,14 @@ const config = {
             options: {
               inlineCodeMarker: null,
               noInlineHighlight: true,
+              aliases: {
+                dotenv: 'bash',
+              },
+              prompt: {
+                user: "user",
+                host: "localhost",
+                global: false,
+              },
             },
           },
           {
@@ -89,7 +97,11 @@ const config = {
             },
           },
         ],
-        remarkPlugins: [require('remark-math'), require('remark-html-katex')],
+        remarkPlugins: [
+          require('remark-math'),
+          require('remark-html-katex'),
+          require('./src/remark/plugins/link-environment-variables')
+        ],
       },
     },
     {

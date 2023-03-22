@@ -47,7 +47,6 @@ export type QueryBody = {
   continueWait?: boolean;
   renewQuery?: boolean;
   requestId?: string;
-  context?: any;
   external?: boolean;
   isJob?: boolean;
   forceNoCache?: boolean;
@@ -429,6 +428,7 @@ export class QueryCache {
       useCsvQuery,
       persistent,
       aliasNameToMember,
+      tablesSchema,
     }: {
       cacheKey: CacheKey,
       dataSource: string,
@@ -439,6 +439,7 @@ export class QueryCache {
       useCsvQuery?: boolean,
       persistent?: boolean,
       aliasNameToMember?: { [alias: string]: string },
+      tablesSchema?: boolean,
     }
   ) {
     const queue = external
@@ -452,6 +453,7 @@ export class QueryCache {
       requestId,
       inlineTables,
       useCsvQuery,
+      tablesSchema,
     };
 
     const opt = {
@@ -531,6 +533,10 @@ export class QueryCache {
         `SQL_QUERY_EXT_${this.redisPrefix}`,
         this.options.externalDriverFactory,
         (client, q) => {
+          if (q.tablesSchema) {
+            return client.tablesSchema();
+          }
+
           this.logger('Executing SQL', {
             ...q
           });
@@ -972,10 +978,5 @@ export class QueryCache {
 
   public async testConnection() {
     return this.cacheDriver.testConnection();
-  }
-  
-  public async fetchSchema(dataSource: string) {
-    const queue = await this.getQueue(dataSource);
-    return queue.executeQueryInQueue('query', [`Fetch schema for ${dataSource}`, []], { tablesSchema: true });
   }
 }

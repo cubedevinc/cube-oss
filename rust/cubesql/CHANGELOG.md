@@ -3,6 +3,40 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.32.12](https://github.com/cube-js/cube.js/compare/v0.32.11...v0.32.12) (2023-03-22)
+
+
+### Bug Fixes
+
+* **cubesql:** Support quicksight AVG Rebase window exprs: Physical plan does not support logical expression SUM(x) PARTITION BY ([#6328](https://github.com/cube-js/cube.js/issues/6328)) ([5a5d7e4](https://github.com/cube-js/cube.js/commit/5a5d7e497f05c69541e04df0a464c85eb9a5f506))
+
+
+
+
+
+## [0.32.11](https://github.com/cube-js/cube.js/compare/v0.32.10...v0.32.11) (2023-03-21)
+
+
+### Bug Fixes
+
+* **cubesql:** Ignore timestamps which can't be represented as nanoseconds instead of failing ([e393b06](https://github.com/cube-js/cube.js/commit/e393b0601fb663b03158ea03143a30eb0086ebbf))
+* **cubesql:** Quicksight AVG measures support ([#6323](https://github.com/cube-js/cube.js/issues/6323)) ([ada0afd](https://github.com/cube-js/cube.js/commit/ada0afd17b42a54fbecac69b849abf40158991c1))
+
+
+
+
+
+## [0.32.9](https://github.com/cube-js/cube.js/compare/v0.32.8...v0.32.9) (2023-03-18)
+
+
+### Bug Fixes
+
+* **cubesql:** Unexpected response from Cube, Field "count" doesn't exist in row ([6bdc91d](https://github.com/cube-js/cube.js/commit/6bdc91d3eaf51dcb25e7321d03b485147511f049))
+
+
+
+
+
 ## [0.32.8](https://github.com/cube-js/cube.js/compare/v0.32.7...v0.32.8) (2023-03-17)
 
 

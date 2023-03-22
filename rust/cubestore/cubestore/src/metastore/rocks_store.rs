@@ -1089,6 +1089,9 @@ mod tests {
             );
         }
 
+        let _ = fs::remove_dir_all(store_path.clone());
+        let _ = fs::remove_dir_all(remote_store_path.clone());
+
         Ok(())
     }
 }

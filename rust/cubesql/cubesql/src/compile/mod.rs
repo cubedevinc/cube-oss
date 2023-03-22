@@ -14,6 +14,7 @@ use datafusion::{
         optimizer::{OptimizerConfig, OptimizerRule},
         projection_drop_out::ProjectionDropOut,
     },
+    physical_plan::ExecutionPlan,
     prelude::*,
     scalar::ScalarValue,
     sql::{parser::Statement as DFStatement, planner::SqlToRel},
@@ -43,26 +44,27 @@ use self::{
         udf::{
             create_array_lower_udf, create_array_upper_udf, create_connection_id_udf,
             create_convert_tz_udf, create_cube_regclass_cast_udf, create_current_schema_udf,
-            create_current_schemas_udf, create_current_timestamp_udf, create_current_user_udf,
-            create_date_add_udf, create_date_sub_udf, create_date_to_timestamp_udf,
-            create_date_udf, create_dateadd_udf, create_datediff_udf, create_dayofmonth_udf,
-            create_dayofweek_udf, create_dayofyear_udf, create_db_udf, create_ends_with_udf,
-            create_format_type_udf, create_generate_series_udtf, create_generate_subscripts_udtf,
-            create_has_schema_privilege_udf, create_hour_udf, create_if_udf, create_instr_udf,
-            create_interval_mul_udf, create_isnull_udf, create_json_build_object_udf,
-            create_least_udf, create_locate_udf, create_makedate_udf, create_measure_udaf,
-            create_minute_udf, create_pg_backend_pid_udf, create_pg_datetime_precision_udf,
-            create_pg_expandarray_udtf, create_pg_get_constraintdef_udf, create_pg_get_expr_udf,
+            create_current_schemas_udf, create_current_setting_udf, create_current_timestamp_udf,
+            create_current_user_udf, create_date_add_udf, create_date_sub_udf,
+            create_date_to_timestamp_udf, create_date_udf, create_dateadd_udf, create_datediff_udf,
+            create_dayofmonth_udf, create_dayofweek_udf, create_dayofyear_udf, create_db_udf,
+            create_ends_with_udf, create_format_type_udf, create_generate_series_udtf,
+            create_generate_subscripts_udtf, create_has_schema_privilege_udf, create_hour_udf,
+            create_if_udf, create_instr_udf, create_interval_mul_udf, create_isnull_udf,
+            create_json_build_object_udf, create_least_udf, create_locate_udf, create_makedate_udf,
+            create_measure_udaf, create_minute_udf, create_pg_backend_pid_udf,
+            create_pg_datetime_precision_udf, create_pg_expandarray_udtf,
+            create_pg_get_constraintdef_udf, create_pg_get_expr_udf,
             create_pg_get_serial_sequence_udf, create_pg_get_userbyid_udf,
             create_pg_is_other_temp_schema, create_pg_my_temp_schema,
             create_pg_numeric_precision_udf, create_pg_numeric_scale_udf,
             create_pg_table_is_visible_udf, create_pg_total_relation_size_udf,
             create_pg_truetypid_udf, create_pg_truetypmod_udf, create_pg_type_is_visible_udf,
-            create_position_udf, create_quarter_udf, create_regexp_substr_udf, create_second_udf,
-            create_session_user_udf, create_sha1_udf, create_str_to_date_udf,
-            create_time_format_udf, create_timediff_udf, create_to_char_udf, create_to_date_udf,
-            create_ucase_udf, create_unnest_udtf, create_user_udf, create_version_udf,
-            create_year_udf,
+            create_position_udf, create_quarter_udf, create_quote_ident_udf,
+            create_regexp_substr_udf, create_second_udf, create_session_user_udf, create_sha1_udf,
+            create_str_to_date_udf, create_time_format_udf, create_timediff_udf,
+            create_to_char_udf, create_to_date_udf, create_ucase_udf, create_unnest_udtf,
+            create_user_udf, create_version_udf, create_year_udf,
         },
     },
     parser::parse_sql_to_statement,
@@ -1174,6 +1176,8 @@ WHERE `TABLE_SCHEMA` = '{}'",
         ctx.register_udf(create_date_to_timestamp_udf());
         ctx.register_udf(create_to_date_udf());
         ctx.register_udf(create_sha1_udf());
+        ctx.register_udf(create_current_setting_udf());
+        ctx.register_udf(create_quote_ident_udf());
 
         // udaf
         ctx.register_udaf(create_measure_udaf());
@@ -1475,9 +1479,21 @@ impl fmt::Debug for QueryPlan {
 }
 
 impl QueryPlan {
-    pub fn as_logical_plan(self) -> LogicalPlan {
+    pub fn as_logical_plan(&self) -> LogicalPlan {
         match self {
-            QueryPlan::DataFusionSelect(_, plan, _) => plan,
+            QueryPlan::DataFusionSelect(_, plan, _) => plan.clone(),
+            QueryPlan::MetaOk(_, _) | QueryPlan::MetaTabular(_, _) => {
+                panic!("This query doesnt have a plan, because it already has values for response")
+            }
+        }
+    }
+
+    pub async fn as_physical_plan(&self) -> Result<Arc<dyn ExecutionPlan>, CubeError> {
+        match self {
+            QueryPlan::DataFusionSelect(_, plan, ctx) => DataFrame::new(ctx.state.clone(), plan)
+                .create_physical_plan()
+                .await
+                .map_err(|e| CubeError::user(e.to_string())),
             QueryPlan::MetaOk(_, _) | QueryPlan::MetaTabular(_, _) => {
                 panic!("This query doesnt have a plan, because it already has values for response")
             }
@@ -3729,16 +3745,12 @@ ORDER BY \"COUNT(count)\" DESC"
     async fn test_select_error() {
         let variants = vec![
             (
-                "SELECT COUNT(maxPrice) FROM KibanaSampleDataEcommerce".to_string(),
-                CompilationError::user("Error during rewrite: Measure aggregation type doesn't match. The aggregation type for 'maxPrice' is 'MAX()' but 'COUNT()' was provided. Please check logs for additional information.".to_string()),
+                "SELECT AVG(maxPrice) FROM KibanaSampleDataEcommerce".to_string(),
+                CompilationError::user("Error during rewrite: Measure aggregation type doesn't match. The aggregation type for 'maxPrice' is 'MAX()' but 'AVG()' was provided. Please check logs for additional information.".to_string()),
             ),
             (
-                "SELECT COUNT(someNumber) FROM NumberCube".to_string(),
-                CompilationError::user("Error during rewrite: Measure aggregation type doesn't match. The aggregation type for 'someNumber' is 'MEASURE()' but 'COUNT()' was provided. Please check logs for additional information.".to_string()),
-            ),
-            (
-                "SELECT COUNT(order_date) FROM KibanaSampleDataEcommerce".to_string(),
-                CompilationError::user("Error during rewrite: Dimension 'order_date' was used with the aggregate function 'COUNT()'. Please use a measure instead. Please check logs for additional information.".to_string()),
+                "SELECT AVG(someNumber) FROM NumberCube".to_string(),
+                CompilationError::user("Error during rewrite: Measure aggregation type doesn't match. The aggregation type for 'someNumber' is 'MEASURE()' but 'AVG()' was provided. Please check logs for additional information.".to_string()),
             ),
         ];
 
@@ -9309,6 +9321,63 @@ ORDER BY \"COUNT(count)\" DESC"
     }
 
     #[tokio::test]
+    async fn test_current_setting() -> Result<(), CubeError> {
+        insta::assert_snapshot!(
+            "current_setting",
+            execute_query(
+                "SELECT current_setting('max_index_keys'), current_setting('search_path')"
+                    .to_string(),
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_quote_ident() -> Result<(), CubeError> {
+        insta::assert_snapshot!(
+            "quote_ident",
+            execute_query(
+                "SELECT quote_ident('pg_catalog') i1, quote_ident('Foo bar') i2".to_string(),
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subquery_current_schema() -> Result<(), CubeError> {
+        insta::assert_snapshot!(
+            "microstrategy_subquery_current_schema",
+            execute_query(
+                "SELECT t.oid FROM pg_catalog.pg_type AS t JOIN pg_catalog.pg_namespace AS n ON t.typnamespace = n.oid WHERE t.typname = 'citext' AND (n.nspname = (SELECT current_schema()) OR n.nspname = 'public')".to_string(),
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_insubquery_where_tables() -> Result<(), CubeError> {
+        insta::assert_snapshot!(
+            "grafana_insubquery_where_tables",
+            execute_query(
+                r#"SELECT quote_ident(table_name) AS "table" FROM information_schema.tables WHERE quote_ident(table_schema) NOT IN ('information_schema', 'pg_catalog', '_timescaledb_cache', '_timescaledb_catalog', '_timescaledb_internal', '_timescaledb_config', 'timescaledb_information', 'timescaledb_experimental') AND table_type = 'BASE TABLE' AND quote_ident(table_schema) IN (SELECT CASE WHEN TRIM(s[i]) = '"$user"' THEN user ELSE TRIM(s[i]) END FROM generate_series(array_lower(string_to_array(current_setting('search_path'), ','), 1), array_upper(string_to_array(current_setting('search_path'), ','), 1)) AS i, string_to_array(current_setting('search_path'), ',') AS s)"#.to_string(),
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_metabase_substring() -> Result<(), CubeError> {
         init_logger();
 
@@ -10333,6 +10402,55 @@ ORDER BY \"COUNT(count)\" DESC"
                 filters: None,
             }
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_quicksight_dense_rank() -> Result<(), CubeError> {
+        init_logger();
+
+        let query_plan = convert_select_to_query_plan(
+            r#"
+            SELECT "faabeaae-5980-4f8f-a5ba-12f56f191f1e.order_date", "isotherrow_1", "faabeaae-5980-4f8f-a5ba-12f56f191f1e.avgPrice_avg", "$otherbucket_group_count", "count"
+            FROM (
+            SELECT "$f4" AS "faabeaae-5980-4f8f-a5ba-12f56f191f1e.order_date", "$f5", "$f6" AS "isotherrow_1", SUM("$weighted_avg_unit_4") AS "faabeaae-5980-4f8f-a5ba-12f56f191f1e.avgPrice_avg", COUNT(*) AS "$otherbucket_group_count", SUM("count") AS "count"
+            FROM (
+            SELECT "count", CASE WHEN "$RANK_1" > 2500 THEN NULL ELSE "faabeaae-5980-4f8f-a5ba-12f56f191f1e.order_date" END AS "$f4", CASE WHEN "$RANK_1" > 2500 THEN NULL ELSE "$RANK_1" END AS "$f5", CASE WHEN "$RANK_1" > 2500 THEN 1 ELSE 0 END AS "$f6", CAST("$weighted_avg_count_3" AS FLOAT) / NULLIF(CAST(SUM("$weighted_avg_count_3") OVER (PARTITION BY CASE WHEN "$RANK_1" > 2500 THEN NULL ELSE "faabeaae-5980-4f8f-a5ba-12f56f191f1e.order_date" END, CASE WHEN "$RANK_1" > 2500 THEN NULL ELSE "$RANK_1" END, CASE WHEN "$RANK_1" > 2500 THEN 1 ELSE 0 END) AS FLOAT), 0) * "faabeaae-5980-4f8f-a5ba-12f56f191f1e.avgPrice_avg" AS "$weighted_avg_unit_4"
+            FROM (
+            SELECT "order_date" AS "faabeaae-5980-4f8f-a5ba-12f56f191f1e.order_date", COUNT(*) AS "count", AVG("avgPrice") AS "faabeaae-5980-4f8f-a5ba-12f56f191f1e.avgPrice_avg", DENSE_RANK() OVER (ORDER BY AVG("avgPrice") DESC NULLS LAST, "order_date" NULLS FIRST) AS "$RANK_1", COUNT("avgPrice") AS "$weighted_avg_count_3"
+            FROM "public"."KibanaSampleDataEcommerce"
+            GROUP BY "order_date"
+            ) AS "t"
+            ) AS "t0"
+            GROUP BY "$f4", "$f5", "$f6"
+            ORDER BY "$f5" NULLS FIRST
+            ) AS "t1"
+            ;"#.to_string(),
+            DatabaseProtocol::PostgreSQL,
+        ).await;
+
+        let logical_plan = query_plan.as_logical_plan();
+
+        assert_eq!(
+            logical_plan.find_cube_scan().request,
+            V1LoadRequestQuery {
+                measures: Some(vec![
+                    "KibanaSampleDataEcommerce.count".to_string(),
+                    "KibanaSampleDataEcommerce.avgPrice".to_string()
+                ]),
+                segments: Some(vec![]),
+                dimensions: Some(vec!["KibanaSampleDataEcommerce.order_date".to_string()]),
+                time_dimensions: None,
+                order: None,
+                limit: None,
+                offset: None,
+                filters: None,
+            }
+        );
+
+        let physical_plan = query_plan.as_physical_plan().await.unwrap();
+        println!("Physical plan: {:?}", physical_plan);
 
         Ok(())
     }

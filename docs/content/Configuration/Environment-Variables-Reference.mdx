@@ -99,7 +99,7 @@ The cache and queue driver to use for the Cube deployment.
 
 | Possible Values   | Default in Development | Default in Production |
 | ----------------- | ---------------------- | --------------------- |
-| `redis`, `memory` | `memory`               | `redis`               |
+| `cubestore`, `memory` | `memory`               | `cubestore`               |
 
 ## `CUBEJS_CONCURRENCY`
 
@@ -135,7 +135,7 @@ environment variables.
 | --------------------------------- | ---------------------- | --------------------- |
 | A comma-separated list of strings | N/A                    | N/A                   |
 
-```bash
+```dotenv
 CUBEJS_DATASOURCES=default,datasource1
 ```
 
@@ -266,7 +266,7 @@ with a data source][ref-config-multiple-ds-decorating-env].
 | ---------------------------------------------- | ---------------------- | --------------------- |
 | A valid bucket in the configured cloud storage | N/A                    | N/A                   |
 
-```bash
+```dotenv
 CUBEJS_DB_EXPORT_BUCKET=exports-20210505
 
 # Decorated with a data source named `datasource1`
@@ -288,7 +288,7 @@ with a data source][ref-config-multiple-ds-decorating-env].
 | --------------- | ---------------------- | --------------------- |
 | `gcp`, `s3`     | N/A                    | N/A                   |
 
-```bash
+```dotenv
 CUBEJS_DB_EXPORT_BUCKET_TYPE=gcp
 
 # Decorated with a data source named `datasource1`
@@ -525,6 +525,14 @@ If `true`, enables SSL encryption for database connections from Cube.
 | --------------- | ---------------------- | --------------------- |
 | `true`, `false` | N/A                    | N/A                   |
 
+## `CUBEJS_DB_TYPE`
+
+A database from the list of [supported databases][ref-config-db].
+
+| Possible Values                                       | Default in Development | Default in Production |
+| ----------------------------------------------------- | ---------------------- | --------------------- |
+| [Any valid database supported by Cube][ref-config-db] | N/A                    | N/A                   |
+
 ## `CUBEJS_DB_URL`
 
 The URL for a database.
@@ -706,6 +714,13 @@ pre-aggregations.
 
 ## `CUBEJS_REDIS_PASSWORD`
 
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
+
 The password used to connect to the Redis server.
 
 | Possible Values        | Default in Development | Default in Production |
@@ -713,6 +728,13 @@ The password used to connect to the Redis server.
 | A valid Redis password | N/A                    | N/A                   |
 
 ## `CUBEJS_REDIS_POOL_MAX`
+
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
 
 The maximum number of connections to keep active in the Redis connection pool
 for a single [`appId`][ref-config-conf-ctx-to-appid] (tenant). Must be higher
@@ -724,6 +746,13 @@ than [`CUBEJS_REDIS_POOL_MIN`](#cubejs-redis-pool-min).
 
 ## `CUBEJS_REDIS_POOL_MIN`
 
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
+
 The minimum number of connections to keep active in the Redis connection pool
 for a single [`appId`][ref-config-conf-ctx-to-appid] (tenant). Must be lower
 than [`CUBEJS_REDIS_POOL_MAX`](#cubejs-redis-pool-max).
@@ -734,6 +763,13 @@ than [`CUBEJS_REDIS_POOL_MAX`](#cubejs-redis-pool-max).
 
 ## `CUBEJS_REDIS_TLS`
 
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
+
 If `true`, then the connection to the Redis server is protected by TLS
 authentication.
 
@@ -743,6 +779,13 @@ authentication.
 
 ## `CUBEJS_REDIS_URL`
 
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
+
 The host URL for a Redis server.
 
 | Possible Values        | Default in Development | Default in Production |
@@ -750,6 +793,13 @@ The host URL for a Redis server.
 | A valid Redis host URL | N/A                    | N/A                   |
 
 ## `CUBEJS_REDIS_USE_IOREDIS`
+
+<WarningBox>
+
+This environment variable is deprecated. Update to v0.32.0 or later
+to use Cube Store instead of Redis.
+
+</WarningBox>
 
 Use [`ioredis`][gh-ioredis] instead of [`redis`][gh-node-redis].
 
@@ -1035,7 +1085,7 @@ The minIO server endpoint. Required when using minIO.
 | ---------------------- | ---------------------- | --------------------- |
 | A valid minIO endpoint | N/A                    | N/A                   |
 
-```bash
+```dotenv
 CUBESTORE_MINIO_SERVER_ENDPOINT=http://localhost:9000
 ```
 
@@ -1141,7 +1191,7 @@ A comma-separated list of address/port pairs for Cube Store workers.
 | -------------------------------------------- | ---------------------- | --------------------- |
 | A comma-separated list of address/port pairs | N/A                    | N/A                   |
 
-```bash
+```dotenv
 CUBESTORE_WORKERS=worker-1:3123,localhost:3124,123.124.125.128:3123
 ```
 
